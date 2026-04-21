@@ -1,0 +1,24 @@
+# Scientific core
+numpy>=2.4,<3
+scipy>=1.17,<2
+pandas>=3.0,<4
+scikit-learn>=1.8,<2
+
+# Deep learning
+torch==2.11.0
+torchvision==0.26.0
+torchaudio==2.11.0
+
+# Graph baselines (pure-PyTorch fall-back is sufficient)
+torch_geometric==2.7.0
+
+# Gradient boosting baseline
+xgboost==3.2.0
+
+# Utilities
+tqdm>=4.67
+networkx>=3.6
+joblib>=1.5
+
+# Plotting (only if regenerating figures; not needed to train)
+matplotlib>=3.10

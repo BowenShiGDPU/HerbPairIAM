@@ -1,18 +1,29 @@
-"""Train tabular and graph baselines under extra outer-CV seeds.
+"""Multi-seed baseline runs for Nature-Communications-grade CI.
 
-For each ``--seeds`` value the script builds a fresh 10-fold
-pair-stratified split (seeded from the CLI) and trains every requested
-baseline on every fold. Fold pickles land under
-``$RESULTS_ROOT_DIR/$EXPERIMENT_SUBDIR/fold_results/<Model>_seed<S>_fold<K>.pkl``.
+For each requested ``outer_seed`` we construct a fresh 10-fold
+pair-stratified split (same mechanics as ``phase2_dataset.build_fold_splits``
+but seeded from the CLI), then train each requested baseline on every
+fold. Fold pickles are written under
+``EXPERIMENT_SUBDIR/fold_results/<Model>_seed<S>_fold<K>.pkl``.
 
-Tabular baselines do one-shot hyperparameter search on fold 0 of each
-seed and reuse those parameters for the remaining folds. Graph
-baselines use the frozen ``GraphConfig`` defaults.
+This adds extra seeds without touching the canonical seed=42 fold pickles
+that already live under ``main_benchmark/fold_results/``. Aggregation is a
+separate step (see ``aggregate_multiseed_baselines.py``) that pools
+seed=42 from the canonical run with the new seeds here.
+
+Tabular baselines (LogisticRegression, RandomForest, GradientBoosting,
+MLP, XGBoost) use the same grid-search protocol as the canonical run:
+hyperparameters are selected once on the first fold of each seed via
+``search_params`` and reused across the remaining folds. We keep the same
+protocol as seed=42 to maximise comparability; a nested-CV variant is
+explored separately in :mod:`run_nested_cv_baselines.py` (Phase 5.1).
+
+Graph baselines (R-GCN, HGT) use the frozen ``GraphConfig`` defaults.
 
 Usage::
 
     RESULTS_ROOT_DIR=results \\
-    EXPERIMENT_SUBDIR=multiseed_baselines \\
+    EXPERIMENT_SUBDIR=formal_doseaware_neg10_auroc/multiseed_baselines \\
     VAL_SELECTION_METRIC=auroc \\
     OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \\
     python -u src/scripts/run_multiseed_baselines.py \\
@@ -42,7 +53,7 @@ from experiment_utils import FOLD_RESULTS_DIR, load_pickle, sanitize_name, save_
 from models.graph_baselines import GraphConfig
 from models.graph_baselines import train_one_split as graph_train_split
 from models.tabular_models import MODEL_GRIDS, fit_predict_split, search_params
-from scripts.prepare_inputs import prepare_common_inputs
+from phase4_evaluation import prepare_common_inputs
 
 
 sys.stdout.reconfigure(line_buffering=True)
@@ -93,6 +104,9 @@ def _fold_path(tag: str, fold_id: int):
 
 def _run_tabular(model_name: str, X, labels, splits: list[dict], neg_ratio: int, seed: int):
     tag = f"{model_name}_seed{seed}"
+    # Hyperparameter search on the first fold only, matching the canonical
+    # seed=42 protocol. Bit-exact reproducibility requires the same fold-0
+    # hyperparameters to be reused for all outer folds of this seed.
     params = search_params(model_name, X, labels, splits[0], neg_ratio=neg_ratio)
     print(f"  [{tag}] best params on fold 0: {params}", flush=True)
     for split in splits:
@@ -120,6 +134,9 @@ def _run_graph(model_name: str, ds: dict, splits: list[dict], neg_ratio: int, se
         if path.exists():
             print(f"  [{tag}] fold {fold_id}: skip (pkl exists)", flush=True)
             continue
+        # Inject the specific split into ds by swapping ``fold_splits``.
+        # graph_train_split reads the split dict directly, not the full ds,
+        # so we pass it through.
         result = graph_train_split(model_name, ds, split, cfg, save_result=False)
         result["outer_seed"] = seed
         save_pickle(result, path)
@@ -148,6 +165,9 @@ def main() -> int:
             if model_name in TABULAR_MODELS:
                 _run_tabular(model_name, X, labels, splits, args.neg_ratio, seed)
             elif model_name in GRAPH_MODELS:
+                # graph baselines need ``fold_splits`` reference for some
+                # edge-type construction; pass a shallow copy of ds with the
+                # current seed's splits inserted.
                 ds_with_splits = dict(ds); ds_with_splits["fold_splits"] = splits
                 _run_graph(model_name, ds_with_splits, splits, args.neg_ratio, seed)
             else:

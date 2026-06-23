@@ -1,14 +1,18 @@
-"""Train the HerbEmbIAM learnable-embedding ablation under multiple seeds.
+"""Run the HerbEmbIAM learnable-embedding ablation.
 
-For each ``--seeds`` value the script builds a fresh 10-fold
-pair-stratified split, constructs baseline samples, and trains
-HerbEmbIAM. Fold pickles are written as
-``H2H_seed<S>_HerbEmbIAM_fold<K>.pkl``.
+Trains HerbEmbIAM (KG individual features replaced by learnable
+``nn.Embedding`` tables) under the same 3-seed protocol as the primary
+head-to-head (``run_dose_head2head.py``). Writes fold pickles into the
+``dose_head2head/fold_results/`` subdirectory so the downstream
+aggregation scripts can pool HerbEmbIAM alongside HerbPairIAM /
+InteractionAwareSetModel / DoseAwareIAM with no additional wiring.
+
+Naming: ``H2H_seed<S>_HerbEmbIAM_fold<K>.pkl``.
 
 Usage::
 
     RESULTS_ROOT_DIR=results \\
-    EXPERIMENT_SUBDIR=herb_emb_iam \\
+    EXPERIMENT_SUBDIR=formal_doseaware_neg10_auroc/dose_head2head \\
     VAL_SELECTION_METRIC=auroc \\
     OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \\
     python -u src/scripts/run_herb_emb_iam.py --seeds 42 13 7 --neg-ratio 10
@@ -34,7 +38,7 @@ from models.neural_models import (
     summarize_results,
     train_one_split,
 )
-from scripts.prepare_inputs import prepare_common_inputs
+from phase4_evaluation import prepare_common_inputs
 
 
 sys.stdout.reconfigure(line_buffering=True)
@@ -74,7 +78,12 @@ def _build_fold_splits(df, outer_seed: int) -> list[dict]:
 
 
 def _vocab_from_lookups(lookups: dict, df) -> dict:
-    """Build a deterministic herb/ADR vocabulary for the embedding tables."""
+    """Build the (herb, ADR) vocabulary from the dataset lookups + dataframe.
+
+    Herbs live in ``lookups['h2i']`` (herb id -> list of ingredient ids).
+    ADRs are whatever appears in ``df['Adr_id']``. We sort both lists so
+    the integer mapping is deterministic.
+    """
     herb_vocab = sorted(lookups.get("h2i", {}).keys())
     adr_vocab = sorted(df["Adr_id"].unique().tolist())
     return {"herb_vocab": herb_vocab, "adr_vocab": adr_vocab}
@@ -89,6 +98,10 @@ def main() -> int:
     args = parser.parse_args()
 
     ds, df, _, _, labels, hp, ap, pf, lookups = prepare_common_inputs()
+    # HerbEmbIAM uses *baseline* samples (no dose tails), matching
+    # InteractionAwareSetModel. That way the only axis of variation vs.
+    # HerbPairIAM/IAM on the same seed is the source of individual herb
+    # and ADR representation (KG-SVD vs learnable embedding).
     sample_map = build_sample_collections(
         df, lookups, hp, ap, pf, ["InteractionAwareSetModel"]
     )

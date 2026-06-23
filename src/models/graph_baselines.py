@@ -1,4 +1,11 @@
-"""Graph baselines: R-GCN and HGT on the pharmacovigilance KG."""
+"""
+End-to-end graph baselines for Formula-ADR prediction.
+
+Implements:
+- R-GCN on the bio-KG without Formula nodes
+- HGT on the bio-KG without Formula nodes
+- R-GCN with Formula nodes and train-only Formula-ADR encoder edges
+"""
 
 from __future__ import annotations
 

@@ -1,4 +1,6 @@
-"""Tabular baselines: LogReg, RandomForest, GradientBoosting, MLP, XGBoost."""
+"""
+Tabular baselines with publication-grade fold artifacts.
+"""
 
 from __future__ import annotations
 

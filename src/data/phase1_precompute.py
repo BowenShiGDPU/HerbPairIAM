@@ -1,15 +1,15 @@
-"""Pre-compute herb, ingredient, ADR, and herb-pair profiles from the KG.
+"""
+Phase 1: Pre-compute herb interaction profiles from the KG.
 
-Outputs (written to ``../outputs/``):
-
-* ``herb_target_profiles.pkl``       -- {CMM_id: vector over targets}
-* ``ingredient_target_profiles.pkl`` -- {In_id: vector over targets}
-* ``adr_target_profiles.pkl``        -- {Adr_id: vector over targets}
-* ``kg_profile_embeddings.pkl``      -- {ingredient/herb/adr: KG-aware vector}
-* ``target_pathway_map.pkl``         -- {Ta_id: set of pathway_ids}
-* ``target_tissue_map.pkl``          -- {Ta_id: set of tissue names}
-* ``herb_pair_features.pkl``         -- {(CMM_id1, CMM_id2, Adr_id): features}
-* ``ingredient_pair_index.pkl``      -- traceability index for interpretability
+Outputs (to ../outputs/):
+  herb_target_profiles.pkl      – {CMM_id: sparse vector over targets}
+  ingredient_target_profiles.pkl – {In_id: sparse vector over targets}
+  adr_target_profiles.pkl       – {Adr_id: sparse vector over targets}
+  kg_profile_embeddings.pkl     – {ingredient/herb/adr: static KG-aware embeddings}
+  target_pathway_map.pkl        – {Ta_id: set of pathway_ids}
+  target_tissue_map.pkl         – {Ta_id: set of tissue names}
+  herb_pair_features.pkl        – {(CMM_id1, CMM_id2, Adr_id): feature_dict}
+  ingredient_pair_index.pkl     – traceability index for interpretability
 """
 
 import os, pickle, sys

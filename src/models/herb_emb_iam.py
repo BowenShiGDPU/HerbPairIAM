@@ -1,11 +1,42 @@
-"""HerbEmbIAM: learnable-embedding ablation of HerbPairIAM.
+"""HerbEmbIAM — learnable-embedding ablation of HerbPairIAM.
 
-Same attention architecture as HerbPairIAM, but the KG-derived
+Design
+------
+Same architecture as ``InteractionAwareSetModel`` **except** the KG-derived
 individual herb profile and the KG-derived ADR profile are replaced by
-learnable embedding tables (``nn.Embedding(n_herbs, d)`` and
-``nn.Embedding(n_adrs, d)``). The pair branch keeps its KG-informed
-features unchanged. Embedding dimension ``d = 48`` matches the KG
-profile dimension used by HerbPairIAM.
+learnable embedding tables::
+
+    herb_emb : nn.Embedding(n_herbs, d)
+    adr_emb  : nn.Embedding(n_adrs,  d)
+
+The pair branch keeps its KG-informed features (the 11 columns of
+``PAIR_FEATURE_KEYS``) so this is a *minimal* learnable-embedding
+substitution: individual level switches from KG-SVD to learnable;
+pair level unchanged; dose branch absent. See ``herb_pair_iam.py`` for
+why the primary model uses KG features.
+
+Purpose (the paper claim this ablation establishes)
+---------------------------------------------------
+Nature Communications reviewers routinely ask whether learnable
+representations could replace hand-crafted KG features. With only 707
+positive labels spread over 126 herbs × 963 ADRs (mean < 10⁻³
+observations per (herb, ADR) pair), learnable identity-level embeddings
+are expected to underfit. If this ablation does underperform HerbPairIAM,
+we establish the KG-feature framework as *necessary* rather than
+convenient in the low-data regime. If it matches, we revise the paper.
+
+Fair-comparison notes
+---------------------
+* Embedding dimension ``d=48`` matches the KG profile dimension
+  (``PROFILE_DIM``) used by HerbPairIAM. Parameter count is therefore
+  dominated by the herb / ADR tables rather than by the set operator.
+* Hyperparameters (hidden=32, dropout=0.3, lr=1e-3, epochs=100,
+  patience=10, batch_size=32, neg_ratio=10, val_metric=AUROC) are
+  inherited from HerbPairIAM to keep the comparison at fixed training
+  budget.
+* Training consumes the same per-fold (train_idx, val_idx, test_idx)
+  partitions as the canonical 3-seed head-to-head, so the 30-fold
+  comparison is paired at the fold level.
 """
 
 from __future__ import annotations
@@ -34,23 +65,31 @@ class HerbEmbIAM(nn.Module):
         n_adrs = len(adr_vocab) + 1
         self.herb_emb = nn.Embedding(n_herbs, emb_dim, padding_idx=0)
         self.adr_emb = nn.Embedding(n_adrs, emb_dim, padding_idx=0)
+        # Standard normal init with modest scale so attention logits stay in
+        # range; matches the effective range of the KG-SVD profile after
+        # projection through ``node_enc``.
         nn.init.normal_(self.herb_emb.weight, mean=0.0, std=0.1)
         nn.init.normal_(self.adr_emb.weight, mean=0.0, std=0.1)
         self.herb_emb.weight.data[0].zero_()
         self.adr_emb.weight.data[0].zero_()
 
+        # After embedding, the individual node feature is [emb_dim] with no
+        # KG extras. The learnable node_enc converts it to the hidden size
+        # used by the rest of the network.
         self.node_enc = nn.Sequential(
             nn.Linear(emb_dim, hidden),
             nn.ReLU(),
             nn.Dropout(dropout),
             nn.Linear(hidden, hidden),
         )
+        # Pair branch identical to IAM.
         self.pair_enc = nn.Sequential(
             nn.Linear(pair_in, hidden),
             nn.ReLU(),
             nn.Dropout(dropout),
             nn.Linear(hidden, hidden),
         )
+        # ADR encoder: project the learnable adr embedding down to ``hidden``.
         self.adr_enc = nn.Sequential(
             nn.Linear(emb_dim, hidden),
             nn.ReLU(),
@@ -81,6 +120,9 @@ class HerbEmbIAM(nn.Module):
         )
 
     def forward(self, sample: dict):
+        # We rely on the raw (string) herb ids and adr id stored in the
+        # sample dict by ``neural_models.precompute_samples``. This avoids
+        # changes to the shared sample builder.
         herbs = sample.get("herbs")
         adr_id = sample.get("adr_id")
         device = sample["pair_features"].device

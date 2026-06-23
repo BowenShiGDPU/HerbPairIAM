@@ -1,4 +1,6 @@
-"""Neural models and training loop for HerbPairIAM and its ablations."""
+"""
+Unified neural model zoo and training utilities for the Formula-ADR benchmark.
+"""
 
 from __future__ import annotations
 
@@ -27,6 +29,10 @@ from experiment_utils import (
     val_score_from_metrics,
 )
 
+# Opt into strict determinism once per process. This is safe to call
+# multiple times; the function is idempotent. Doing it at module import
+# covers training entry points that bypass ``train_one_split`` (e.g.
+# standalone scripts that call build_model directly).
 enable_strict_determinism()
 
 
@@ -106,7 +112,7 @@ def model_sample_mode(model_name: str) -> str:
         "DoseAwareMeanPool",
         "IAM_DoseFeats",
         "DoseAware_ZeroDose",
-        "HerbPairIAM",
+        "HerbPairIAM",  # primary model (see src/models/herb_pair_iam.py)
     }:
         return "doseaware"
     if model_name == "IngredientLiteIAM":
@@ -115,10 +121,17 @@ def model_sample_mode(model_name: str) -> str:
 
 
 def model_intrinsic_ablation(model_name: str) -> frozenset[str]:
-    """Sample-level ablation tags that are always applied for the given model.
+    """Ablation tags intrinsic to the model name itself.
 
-    HerbPairIAM and its historical alias always zero-fill dose-derived
-    sample fields; every other model returns an empty frozenset.
+    Some models are defined as an architecture + an enforced sample-level
+    ablation. For those, sample caches must always have these tags applied
+    regardless of what the caller passes via ``feature_ablation``. For all
+    other models this returns an empty frozenset.
+
+    Currently only ``HerbPairIAM`` (the primary model) and its historical
+    alias ``DoseAware_ZeroDose`` use this: both are the full DoseAware
+    architecture with all dose-derived sample fields zero-filled
+    (``AL_dose`` / ``without_dose``).
     """
     if model_name in {"HerbPairIAM", "DoseAware_ZeroDose"}:
         return frozenset({"AL_dose"})
@@ -156,7 +169,13 @@ def _pair_dim_for_mode(sample_mode: str) -> int:
 
 
 def _normalize_ablation_tags(feature_ablation) -> frozenset[str]:
-    """Normalise None / single str / iterable-of-str into a frozenset of tags."""
+    """Accept None / single str / iterable of str and return canonical frozenset.
+
+    Single str input is preserved as a one-element frozenset to keep the legacy
+    feature-ablation entries (without_dose / without_pathway / ...) behaving
+    exactly as before. New alliance-style ablations pass an explicit frozenset
+    of tags such as ``frozenset({"AL_dose", "AL_pair_direct"})``.
+    """
 
     if feature_ablation is None:
         return frozenset()
@@ -166,11 +185,21 @@ def _normalize_ablation_tags(feature_ablation) -> frozenset[str]:
 
 
 def _ablate_pair_feature_dict(pf: dict, feature_ablation) -> dict:
-    """Zero out per-pair feature channels driven by the active ablation tags."""
+    """Zero out per-pair feature channels driven by the active ablation tags.
+
+    Both the legacy single-tag entries (without_pathway / without_tissue / ...)
+    and the new alliance tags (AL_pair_direct / AL_pair_multiomics) are honored.
+    AL_dose is handled at the dose_product / |dr1-dr2| / max / min channels by
+    the caller in precompute_samples; this function only owns the pair feature
+    dict from herb_pair_features.pkl.
+    """
 
     tags = _normalize_ablation_tags(feature_ablation)
     out = {k: float(pf.get(k, 0.0)) for k in PAIR_FEATURE_KEYS}
 
+    # Shortcut: zero every pair feature channel (used by the pair_zero_diagnostic
+    # ablation to test whether the pair branch learns from its feature *values*
+    # or from the *structure* of herb co-occurrence alone).
     if "AL_pair_all" in tags:
         for k in PAIR_FEATURE_KEYS:
             out[k] = 0.0
@@ -232,6 +261,10 @@ def build_sample_collections(
     for model_name in sorted(set(model_names)):
         profile_backend = model_profile_backend(model_name)
         sample_mode = model_sample_mode(model_name)
+        # Merge caller-provided ablation tags with any ablation that is
+        # intrinsic to the model itself (e.g. HerbPairIAM always uses
+        # zero-dose samples). The merged set controls both the cache key
+        # and what is forwarded to precompute_samples.
         combined_ablation = caller_ablation | model_intrinsic_ablation(model_name)
         cache_key = (profile_backend, sample_mode, combined_ablation)
         if cache_key not in cache:
@@ -718,8 +751,24 @@ def build_model(model_name: str, config: ModelConfig, sample_example=None, vocab
     if model_name in {"InteractionAwareSetModel", "KGEmbedIAM", "IAM_DoseFeats"}:
         return InteractionAwareSetModel(node_in=node_in, pair_in=pair_in, adr_in=adr_in, hidden=config.hidden, dropout=config.dropout).to(DEVICE)
     if model_name == "IAM_Wide":
+        # Capacity-matched to DoseAwareIAM (hidden=44 -> 17031 params vs 16805).
+        # Sample mode is "baseline" (no dose channels in node/pair tails) so the
+        # only difference vs V0 InteractionAwareSetModel is hidden width.
         return InteractionAwareSetModel(node_in=node_in, pair_in=pair_in, adr_in=adr_in, hidden=44, dropout=config.dropout).to(DEVICE)
     if model_name in {"DoseAwareIAM", "DoseAware_ZeroDose", "HerbPairIAM"}:
+        # Three names share the ``DoseAwareInteractionAwareSetModel`` architecture:
+        #
+        # * ``DoseAwareIAM``        — fed with real dose values, kept only as a
+        #                             named ablation baseline ("with real dose").
+        # * ``DoseAware_ZeroDose``  — historical alias for HerbPairIAM used while
+        #                             the head-to-head experiment was running.
+        # * ``HerbPairIAM``         — the PRIMARY MODEL. See
+        #                             ``src/models/herb_pair_iam.py`` for the
+        #                             justification. At the architecture level
+        #                             it is identical to DoseAwareIAM; the
+        #                             difference is enforced at sample level
+        #                             via ``model_intrinsic_ablation`` which
+        #                             zero-fills all dose-derived fields.
         return DoseAwareInteractionAwareSetModel(node_in=node_in, pair_in=pair_in, adr_in=adr_in, dose_in=dose_in, hidden=config.hidden, dropout=config.dropout).to(DEVICE)
     if model_name == "DoseAwareNoDoseGate":
         return DoseAwareInteractionAwareSetModel(

@@ -1,4 +1,9 @@
-"""Build the tested-universe dataset, feature table, and CV splits."""
+"""
+Clean dataset construction for the Formula-ADR benchmark.
+
+This module builds the tested-universe dataset, feature table, main CV splits,
+and seeded cold-start splits used by all later phases.
+"""
 
 from __future__ import annotations
 

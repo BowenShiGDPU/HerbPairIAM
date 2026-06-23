@@ -1,0 +1,37 @@
+{
+  "run": "canonical primary model (HerbPairIAM)",
+  "entry": "src/scripts/run_primary_canonical.py",
+  "reconstructed_from": "run_manifest_history (canonical record, 2026-04-19) + fold pickle metadata + dataset hash",
+  "note": "the live run_manifest.json under the main benchmark was later overwritten by a graph-baseline stability rerun; this file records the primary-run provenance, as recommended for reproducibility.",
+  "dataset": {
+    "path": "outputs/dataset.pkl",
+    "sha256": "e55527c891fcf88536e3338aa265beba679348f709cbfba80d62705f39b78d76"
+  },
+  "config": {
+    "hidden": 32,
+    "dropout": 0.3,
+    "lr": 0.001,
+    "epochs": 100,
+    "patience": 10,
+    "batch_size": 32,
+    "neg_ratio": 10,
+    "seed": 42,
+    "eval_every": 2,
+    "val_selection_metric": "auroc"
+  },
+  "determinism": {
+    "strict_determinism": true,
+    "cublas_workspace_config": ":4096:8",
+    "single_thread_blas": "OMP/MKL/OPENBLAS/NUMEXPR = 1"
+  },
+  "packages": {
+    "numpy": "2.4.4",
+    "pandas": "3.0.2",
+    "scikit-learn": "1.8.0",
+    "scipy": "1.17.1",
+    "torch": "2.11.0",
+    "torch-geometric": "2.7.0",
+    "xgboost": "3.2.0"
+  },
+  "python": "3.12"
+}

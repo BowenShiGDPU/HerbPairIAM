@@ -2,7 +2,7 @@
 
 Interpretable-by-construction, interaction-aware attention over a pharmacovigilance
 chemical-safety graph for Kampo formula–adverse drug reaction (ADR) signal
-prioritization, with per-component and per-component-pair attribution.
+prioritization, with per-component and per-component-pair review-priority ranking.
 
 This repository contains the preprocessing, feature construction, training,
 evaluation, package-insert auditing, interpretability, structural follow-up, and

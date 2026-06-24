@@ -10,7 +10,7 @@ figure-generation code for the accompanying paper. Large processed artifacts
 (node/relation tables, feature tensors, fold predictions, trained model files,
 audit outputs, reproducibility metadata) are archived on Zenodo:
 
-> **Data & artifact package** — https://doi.org/10.5281/zenodo.19326538
+> **Data & artifact package** — https://doi.org/10.5281/zenodo.20821998
 
 ## Repository layout
 

@@ -1,7 +1,7 @@
 # Code, data, and artifact release map
 
 Public code is in this repository (GitHub). Large processed artifacts are archived on
-Zenodo (https://doi.org/10.5281/zenodo.19326538). Raw provider data is not redistributed. Model naming (paper-facing names vs. source-code class names) is documented in `NAMING.md`.
+Zenodo (https://doi.org/10.5281/zenodo.20821998). Raw provider data is not redistributed. Model naming (paper-facing names vs. source-code class names) is documented in `NAMING.md`.
 
 | Artifact | Public location | Role | Canonical / sensitivity | Reproduces |
 |---|---|---|---|---|

@@ -5,8 +5,8 @@ chemical-safety graph for Kampo formula–adverse drug reaction (ADR) signal
 prioritization, with per-component and per-component-pair review-priority ranking.
 
 This repository contains the preprocessing, feature construction, training,
-evaluation, package-insert auditing, interpretability, structural follow-up, and
-figure-generation code for the accompanying paper. Large processed artifacts
+evaluation, package-insert auditing, interpretability, and selected benchmark
+and evaluation figure-generation code for the accompanying paper. Large processed artifacts
 (node/relation tables, feature tensors, fold predictions, trained model files,
 audit outputs, reproducibility metadata) are archived on Zenodo:
 
@@ -24,10 +24,9 @@ src/
 │                  finalize_results.py, bootstrap_pooled_ci.py, make_figures.py, experiment_utils.py
 └── scripts/       run_primary_canonical.py, run_multiseed_baselines.py,
                    package-insert audit (audit_top500_nonsignal.py, scan_topk_pmda_curve.py,
-                   repeated_pmda_random_audit.py, audit_random_nonsignal_baseline.py),
-                   structural follow-up (run_formal_structure_ablation_job.py,
-                   prepare_mechanistic_publication_outputs.py), subgroup/statistics
-                   (compute_subgroup_analysis.py, compute_pairwise_delong.py), and aggregation drivers
+                   audit_random_nonsignal_baseline.py), subgroup/statistics
+                   (compute_subgroup_analysis.py, compute_pairwise_delong.py), model-ablation,
+                   and aggregation drivers
 ```
 
 All paths resolve relative to the repository root; no machine-specific paths are
@@ -56,7 +55,7 @@ RESULTS_ROOT_DIR=results EXPERIMENT_SUBDIR=multiseed_baselines \
 python -u src/evaluation/phase4_evaluation.py  # benchmark table, calibration, decision-curve, ablations
 python -u src/evaluation/phase5_interpretability.py        # attention + leave-one-component perturbation
 python -u src/scripts/audit_top500_nonsignal.py            # package-insert audit of top-ranked candidates
-python -u src/evaluation/make_figures.py       # manuscript figures
+python -u src/evaluation/make_figures.py       # selected benchmark/evaluation figures
 ```
 
 The primary model is `HerbPairIAM`. Public comparators are seven formal baselines:
